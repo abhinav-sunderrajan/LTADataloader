@@ -20,11 +20,12 @@ import utils.DatabaseAccess;
  * @author abhinav.sunderrajan
  * 
  */
-public class TrafficSpeedBandDatabaseLoader extends DatabaseLoader {
+public class TrafficSpeedBandDatabaseLoader extends DatabaseLoader<Document> {
 
 	private long clear = 0;
-	private Map<String, Long> insertedMap;
+	private Map<String, String> insertedMap;
 	private static final Logger LOGGER = Logger.getLogger(TrafficSpeedBandDatabaseLoader.class);
+
 	private static final DateTimeFormatter df = DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss");
 
 	/**
@@ -34,7 +35,7 @@ public class TrafficSpeedBandDatabaseLoader extends DatabaseLoader {
 	 */
 	public TrafficSpeedBandDatabaseLoader(Queue<Document> xmlDocQueue, DatabaseAccess access) {
 		super(xmlDocQueue, access);
-		insertedMap = new HashMap<String, Long>();
+		insertedMap = new HashMap<String, String>();
 	}
 
 	public void run() {
@@ -46,13 +47,17 @@ public class TrafficSpeedBandDatabaseLoader extends DatabaseLoader {
 					e.printStackTrace();
 				}
 			}
-			Document data = xmlDocQueue.poll();
-			clear++;
-
-			@SuppressWarnings("unchecked")
-			Iterator<Element> it = data.getRootElement().elementIterator("entry");
 			int nRows = 0;
 			try {
+				Document data = xmlDocQueue.poll();
+				clear++;
+
+				@SuppressWarnings("unchecked")
+				Iterator<Element> it = data.getRootElement().elementIterator("entry");
+
+				LOGGER.info("Inserting document into DB..");
+				access.setBlockExecutePS(
+						"INSERT INTO  trafficspeedbandset VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", 1);
 				while (it.hasNext()) {
 					Element element = it.next();
 					Element content = element.element("content").element("properties");
@@ -78,8 +83,7 @@ public class TrafficSpeedBandDatabaseLoader extends DatabaseLoader {
 					Double lat2 = Double.parseDouble(latLons[2]);
 					Double lon2 = Double.parseDouble(latLons[3]);
 					String summary = content.elementText("Summary").replaceAll("[^\\w\\s]", "");
-					Long time_stamp = df.parseDateTime(content.elementText("CreateDate"))
-							.getMillis();
+					String time_stamp = content.elementText("CreateDate");
 
 					if (!insertedMap.containsKey(id)) {
 						insertedMap.put(id, time_stamp);
@@ -88,6 +92,8 @@ public class TrafficSpeedBandDatabaseLoader extends DatabaseLoader {
 						nRows++;
 					}
 				}
+
+				access.getBlockExecute().close();
 			} catch (SQLException e) {
 				LOGGER.error("Error inserting data to database.", e);
 			}

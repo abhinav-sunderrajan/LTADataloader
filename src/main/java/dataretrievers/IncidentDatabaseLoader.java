@@ -14,11 +14,17 @@ import org.joda.time.format.DateTimeFormatter;
 
 import utils.DatabaseAccess;
 
-public class IncidentDatabaseLoader extends DatabaseLoader {
+/**
+ * 
+ * @author abhinav.sunderrajan
+ * 
+ */
+public class IncidentDatabaseLoader extends DatabaseLoader<Document> {
 
 	private long clear = 0;
-	private Map<Long, Long> insertedMap;
+	private Map<Long, String> insertedMap;
 	private static final Logger LOGGER = Logger.getLogger(IncidentDatabaseLoader.class);
+	// Not working prone to failures since format is not always predictable.
 	private static final DateTimeFormatter df = DateTimeFormat
 			.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSS");
 
@@ -29,7 +35,7 @@ public class IncidentDatabaseLoader extends DatabaseLoader {
 	 */
 	public IncidentDatabaseLoader(Queue<Document> xmlDocQueue, DatabaseAccess access) {
 		super(xmlDocQueue, access);
-		insertedMap = new HashMap<Long, Long>();
+		insertedMap = new HashMap<Long, String>();
 	}
 
 	@Override
@@ -42,13 +48,18 @@ public class IncidentDatabaseLoader extends DatabaseLoader {
 					e.printStackTrace();
 				}
 			}
-			Document data = xmlDocQueue.poll();
-			clear++;
 
-			@SuppressWarnings("unchecked")
-			Iterator<Element> it = data.getRootElement().elementIterator("entry");
 			int nRows = 0;
+
 			try {
+				Document data = xmlDocQueue.poll();
+				clear++;
+
+				@SuppressWarnings("unchecked")
+				Iterator<Element> it = data.getRootElement().elementIterator("entry");
+				LOGGER.info("Inserting document into DB..");
+				access.setBlockExecutePS("INSERT INTO  incidentset VALUES (?,?,?,?,?,?,?)", 1);
+
 				while (it.hasNext()) {
 					Element element = it.next();
 					Element content = element.element("content").element("properties");
@@ -59,8 +70,7 @@ public class IncidentDatabaseLoader extends DatabaseLoader {
 					Double longitude = Double.parseDouble(content.elementText("Longitude"));
 					String type = content.elementText("Type").replaceAll("[^\\w\\s]", "");
 					Double distance = Double.parseDouble(content.elementText("Distance"));
-					Long time_stamp = df.parseDateTime(content.elementText("CreateDate"))
-							.getMillis();
+					String time_stamp = content.elementText("CreateDate");
 
 					if (!insertedMap.containsKey(id)) {
 						insertedMap.put(id, time_stamp);
@@ -69,6 +79,8 @@ public class IncidentDatabaseLoader extends DatabaseLoader {
 						nRows++;
 					}
 				}
+
+				access.getBlockExecute().close();
 			} catch (SQLException e) {
 				LOGGER.error("Error inserting data to database.", e);
 			}

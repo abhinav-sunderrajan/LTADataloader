@@ -4,9 +4,6 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.net.MalformedURLException;
-import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Properties;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -15,7 +12,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
-import org.dom4j.Document;
+import org.json.simple.JSONArray;
 
 import utils.DatabaseAccess;
 
@@ -26,17 +23,16 @@ import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import com.gargoylesoftware.htmlunit.html.HtmlSubmitInput;
 
 import dataretrievers.DataRetriever;
-import dataretrievers.IncidentDatabaseLoader;
-import dataretrievers.TrafficSpeedBandDatabaseLoader;
+import dataretrievers.EstimatedTravelTimeLoader;
 
 public class LTADataLoaderMain {
-	private static Map<String, Queue<Document>> xmlDocQueueMap;
 	private static ScheduledExecutorService executor;
 	private static Properties dbConnectionProperties;
 	private static Properties configProperties;
 	private static final String URLS[] = {
 			"http://datamall.mytransport.sg/ltaodataservice.svc/TrafficSpeedBandSet",
-			"http://datamall.mytransport.sg/ltaodataservice.svc/IncidentSet" };
+			"http://datamall.mytransport.sg/ltaodataservice.svc/IncidentSet",
+			"http://datamall2.mytransport.sg/ltaodataservice/EstTravelTimes" };
 
 	private static final Logger LOGGER = Logger.getLogger(LTADataLoaderMain.class);
 	private static final WebClient webClient = new WebClient();
@@ -79,7 +75,6 @@ public class LTADataLoaderMain {
 				}
 			}));
 
-			xmlDocQueueMap = new HashMap<String, Queue<Document>>();
 			dbConnectionProperties = new Properties();
 			configProperties = new Properties();
 			if (args.length == 2) {
@@ -92,18 +87,23 @@ public class LTADataLoaderMain {
 
 			}
 
-			executor = Executors.newScheduledThreadPool(URLS.length * 3 + 1);
-			executor.scheduleAtFixedRate(new RefreshUID(), 0, 900, TimeUnit.SECONDS);
+			executor = Executors.newScheduledThreadPool(URLS.length * 2 + 1);
+			executor.scheduleAtFixedRate(new RefreshUID(), 0, 720, TimeUnit.MINUTES);
 
-			for (String url : URLS)
-				xmlDocQueueMap.put(url, new ConcurrentLinkedQueue<Document>());
+			// DateTimeParser[] parsers = {
+			// DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSS").getParser(),
+			// DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss").getParser() };
+			// DateTimeFormatter df = new
+			// DateTimeFormatterBuilder().append(null, parsers)
+			// .toFormatter();
 
-			launchThreads();
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
+
+		launchThreads();
 
 	}
 
@@ -113,31 +113,33 @@ public class LTADataLoaderMain {
 				DatabaseAccess access = new DatabaseAccess(dbConnectionProperties);
 
 				if (url.contains("TrafficSpeedBandSet")) {
-					executor.scheduleAtFixedRate(new DataRetriever(url, configProperties,
-							xmlDocQueueMap), 1, 300, TimeUnit.SECONDS);
-					access.setBlockExecutePS(
-							"INSERT INTO  trafficspeedbandset VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
-							10);
-
-					executor.schedule(new TrafficSpeedBandDatabaseLoader(xmlDocQueueMap.get(url),
-							access), 2, TimeUnit.SECONDS);
+					// executor.scheduleAtFixedRate(new DataRetriever(url,
+					// configProperties,
+					// xmlDocQueueMap), 1, 300, TimeUnit.SECONDS);
+					// executor.schedule(new
+					// TrafficSpeedBandDatabaseLoader(xmlDocQueueMap.get(url),
+					// access), 2, TimeUnit.SECONDS);
 
 				}
-
 				if (url.contains("IncidentSet")) {
-					executor.scheduleAtFixedRate(new DataRetriever(url, configProperties,
-							xmlDocQueueMap), 2, 120, TimeUnit.SECONDS);
-					access.setBlockExecutePS("INSERT INTO  incidentset VALUES (?,?,?,?,?,?,?)", 10);
-					executor.schedule(new IncidentDatabaseLoader(xmlDocQueueMap.get(url), access),
-							2, TimeUnit.SECONDS);
-
+					// executor.scheduleAtFixedRate(new DataRetriever(url,
+					// configProperties,
+					// xmlDocQueueMap), 2, 120, TimeUnit.SECONDS);
+					// executor.schedule(new
+					// IncidentDatabaseLoader(xmlDocQueueMap.get(url), access),
+					// 2, TimeUnit.SECONDS);
+				}
+				if (url.contains("EstTravelTimes")) {
+					Queue<JSONArray> travelTimeQueue = new ConcurrentLinkedQueue<JSONArray>();
+					executor.scheduleAtFixedRate(new DataRetriever<JSONArray>(url,
+							configProperties, travelTimeQueue), 2, 120, TimeUnit.SECONDS);
+					executor.schedule(new EstimatedTravelTimeLoader(travelTimeQueue, access), 2,
+							TimeUnit.SECONDS);
 				}
 
 			}
 		} catch (IOException e) {
 			LOGGER.error("Error while parsing config properties file", e);
-		} catch (SQLException e) {
-			LOGGER.error("Error creating prepared statement for block insert", e);
 		}
 
 	}
