@@ -31,8 +31,8 @@ public class LTADataLoaderMain {
 	private static Properties dbConnectionProperties;
 	private static Properties configProperties;
 	private static final String URLS[] = {
-			/* "http://datamall.mytransport.sg/ltaodataservice.svc/TrafficSpeedBandSet", */
-			"http://datamall2.mytransport.sg/ltaodataservice/TrafficImages?skip=50" };
+			 "http://datamall.mytransport.sg/ltaodataservice.svc/TrafficSpeedBandSet", 
+			"http://datamall2.mytransport.sg/ltaodataservice/Traffic-Images" };
 
 	private static final Logger LOGGER = Logger
 			.getLogger(LTADataLoaderMain.class);
@@ -131,7 +131,7 @@ public class LTADataLoaderMain {
 							speedbandQueue, access), 2, TimeUnit.SECONDS);
 
 				}
-				if (url.contains("TrafficImages")) {
+				if (url.contains("Traffic-Images")) {
 					Queue<JSONObject> imagesQueue = new ConcurrentLinkedQueue<JSONObject>();
 					executor.scheduleAtFixedRate(
 							new DataRetriever<JSONObject>(url, configProperties,
