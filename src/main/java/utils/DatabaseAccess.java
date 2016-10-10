@@ -61,10 +61,13 @@ public class DatabaseAccess {
 		try {
 			Class.forName(DRIVER).newInstance();
 
-			connect = (Connection) DriverManager.getConnection(url + dbName, userName, password);
+			connect = (Connection) DriverManager.getConnection(url + dbName,
+					userName, password);
 
 		} catch (Exception e) {
-			LOGGER.error("Unable to connect to database. Please check the settings", e);
+			LOGGER.error(
+					"Unable to connect to database. Please check the settings",
+					e);
 		}
 
 	}
@@ -77,14 +80,18 @@ public class DatabaseAccess {
 	 * @param userName
 	 * @param password
 	 */
-	private void openDBConnection(String url, String userName, String password) {
+	private void openDBConnection(String url, String userName,
+			String password) {
 		try {
 			Class.forName(DRIVER).newInstance();
 
-			connect = (Connection) DriverManager.getConnection(url, userName, password);
+			connect = (Connection) DriverManager.getConnection(url, userName,
+					password);
 
 		} catch (Exception e) {
-			LOGGER.error("Unable to connect to database. Please check the settings", e);
+			LOGGER.error(
+					"Unable to connect to database. Please check the settings",
+					e);
 		}
 
 	}
@@ -151,6 +158,13 @@ public class DatabaseAccess {
 		}
 	}
 
+	public PreparedStatement getPreparedStatement(String queryString) throws SQLException {
+		PreparedStatement preparedStatement = (PreparedStatement) connect
+				.prepareStatement(queryString);
+		return preparedStatement;
+
+	}
+
 	/**
 	 * Set up a prepared statement for block execute
 	 * 
@@ -160,7 +174,8 @@ public class DatabaseAccess {
 	 *            the statement to be repeatedly executed.
 	 * @throws SQLException
 	 */
-	public void setBlockExecutePS(String sql, int batchSize) throws SQLException {
+	public void setBlockExecutePS(String sql, int batchSize)
+			throws SQLException {
 		blockExecute = connect.prepareStatement(sql);
 		this.batchSize = batchSize;
 	}

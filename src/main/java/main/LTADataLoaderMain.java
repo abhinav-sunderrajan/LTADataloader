@@ -12,9 +12,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
-import org.json.simple.JSONArray;
-
-import utils.DatabaseAccess;
+import org.dom4j.Document;
+import org.json.simple.JSONObject;
 
 import com.gargoylesoftware.htmlunit.FailingHttpStatusCodeException;
 import com.gargoylesoftware.htmlunit.WebClient;
@@ -23,18 +22,20 @@ import com.gargoylesoftware.htmlunit.html.HtmlPage;
 import com.gargoylesoftware.htmlunit.html.HtmlSubmitInput;
 
 import dataretrievers.DataRetriever;
-import dataretrievers.EstimatedTravelTimeLoader;
+import dataretrievers.TrafficImagesDatabaseLoader;
+import dataretrievers.TrafficSpeedBandDatabaseLoader;
+import utils.DatabaseAccess;
 
 public class LTADataLoaderMain {
 	private static ScheduledExecutorService executor;
 	private static Properties dbConnectionProperties;
 	private static Properties configProperties;
 	private static final String URLS[] = {
-			"http://datamall.mytransport.sg/ltaodataservice.svc/TrafficSpeedBandSet",
-			"http://datamall.mytransport.sg/ltaodataservice.svc/IncidentSet",
-			"http://datamall2.mytransport.sg/ltaodataservice/EstTravelTimes" };
+			/* "http://datamall.mytransport.sg/ltaodataservice.svc/TrafficSpeedBandSet", */
+			"http://datamall2.mytransport.sg/ltaodataservice/TrafficImages?skip=50" };
 
-	private static final Logger LOGGER = Logger.getLogger(LTADataLoaderMain.class);
+	private static final Logger LOGGER = Logger
+			.getLogger(LTADataLoaderMain.class);
 	private static final WebClient webClient = new WebClient();
 
 	private static class RefreshUID implements Runnable {
@@ -42,16 +43,21 @@ public class LTADataLoaderMain {
 		@Override
 		public void run() {
 			try {
-				HtmlPage page = webClient.getPage("http://datamall.mytransport.sg/tool.aspx");
+				HtmlPage page = webClient
+						.getPage("http://datamall.mytransport.sg/tool.aspx");
 				HtmlInput accKey = page.getElementByName("tbAccountKey");
-				accKey.setValueAttribute(configProperties.getProperty("AccountKey"));
+				accKey.setValueAttribute(
+						configProperties.getProperty("AccountKey"));
 
-				HtmlSubmitInput generateUIDButton = page.getElementByName("btnGenerateUUID");
+				HtmlSubmitInput generateUIDButton = page
+						.getElementByName("btnGenerateUUID");
 				page = generateUIDButton.click();
 
 				HtmlInput uid = page.getElementByName("tbUniqueUserID");
-				configProperties.setProperty("UniqueUserID", uid.getValueAttribute());
-				LOGGER.info("Set the new value of UID to " + uid.getValueAttribute());
+				configProperties.setProperty("UniqueUserID",
+						uid.getValueAttribute());
+				LOGGER.info("Set the new value of UID to "
+						+ uid.getValueAttribute());
 
 			} catch (FailingHttpStatusCodeException e) {
 				LOGGER.error("Error generating new UID", e);
@@ -81,14 +87,16 @@ public class LTADataLoaderMain {
 				configProperties.load(new FileInputStream(args[1]));
 				dbConnectionProperties.load(new FileInputStream(args[0]));
 			} else {
-				configProperties.load(new FileInputStream("src/main/resources/config.properties"));
+				configProperties.load(new FileInputStream(
+						"src/main/resources/config.properties"));
 				dbConnectionProperties.load(new FileInputStream(
 						"src/main/resources/connection.properties"));
 
 			}
 
 			executor = Executors.newScheduledThreadPool(URLS.length * 2 + 1);
-			executor.scheduleAtFixedRate(new RefreshUID(), 0, 720, TimeUnit.MINUTES);
+			executor.scheduleAtFixedRate(new RefreshUID(), 0, 720,
+					TimeUnit.MINUTES);
 
 			// DateTimeParser[] parsers = {
 			// DateTimeFormat.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSS").getParser(),
@@ -110,31 +118,27 @@ public class LTADataLoaderMain {
 	private static void launchThreads() {
 		try {
 			for (String url : URLS) {
-				DatabaseAccess access = new DatabaseAccess(dbConnectionProperties);
+				DatabaseAccess access = new DatabaseAccess(
+						dbConnectionProperties);
 
 				if (url.contains("TrafficSpeedBandSet")) {
-					// executor.scheduleAtFixedRate(new DataRetriever(url,
-					// configProperties,
-					// xmlDocQueueMap), 1, 300, TimeUnit.SECONDS);
-					// executor.schedule(new
-					// TrafficSpeedBandDatabaseLoader(xmlDocQueueMap.get(url),
-					// access), 2, TimeUnit.SECONDS);
+					Queue<Document> speedbandQueue = new ConcurrentLinkedQueue<Document>();
+					executor.scheduleAtFixedRate(
+							new DataRetriever<Document>(url, configProperties,
+									speedbandQueue),
+							1, 300, TimeUnit.SECONDS);
+					executor.schedule(new TrafficSpeedBandDatabaseLoader(
+							speedbandQueue, access), 2, TimeUnit.SECONDS);
 
 				}
-				if (url.contains("IncidentSet")) {
-					// executor.scheduleAtFixedRate(new DataRetriever(url,
-					// configProperties,
-					// xmlDocQueueMap), 2, 120, TimeUnit.SECONDS);
-					// executor.schedule(new
-					// IncidentDatabaseLoader(xmlDocQueueMap.get(url), access),
-					// 2, TimeUnit.SECONDS);
-				}
-				if (url.contains("EstTravelTimes")) {
-					Queue<JSONArray> travelTimeQueue = new ConcurrentLinkedQueue<JSONArray>();
-					executor.scheduleAtFixedRate(new DataRetriever<JSONArray>(url,
-							configProperties, travelTimeQueue), 2, 120, TimeUnit.SECONDS);
-					executor.schedule(new EstimatedTravelTimeLoader(travelTimeQueue, access), 2,
-							TimeUnit.SECONDS);
+				if (url.contains("TrafficImages")) {
+					Queue<JSONObject> imagesQueue = new ConcurrentLinkedQueue<JSONObject>();
+					executor.scheduleAtFixedRate(
+							new DataRetriever<JSONObject>(url, configProperties,
+									imagesQueue),
+							2, 60, TimeUnit.SECONDS);
+					executor.schedule(new TrafficImagesDatabaseLoader(
+							imagesQueue, access), 2, TimeUnit.SECONDS);
 				}
 
 			}

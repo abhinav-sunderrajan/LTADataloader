@@ -38,8 +38,8 @@ public class DataRetriever<T> implements Runnable {
 	 * @param configproperties
 	 * @param xmlDocQueueMap
 	 */
-	public DataRetriever(String apiUrl, Properties configproperties, Queue<T> xmlDocQueueMap)
-			throws IOException {
+	public DataRetriever(String apiUrl, Properties configproperties,
+			Queue<T> xmlDocQueueMap) throws IOException {
 		this.dataQueue = xmlDocQueueMap;
 		this.apiUrl = apiUrl;
 		this.accountKey = configproperties.getProperty("AccountKey");
@@ -73,25 +73,34 @@ public class DataRetriever<T> implements Runnable {
 					}
 
 					if (System.currentTimeMillis() - t > 5000) {
-						LOGGER.info("Breaking due to a weird web-service error " + line);
+						LOGGER.info("Breaking due to a weird web-service error "
+								+ line);
 						goodDocument = false;
 						break;
 					}
 				}
 				if (strBuilder.toString().startsWith("<") && goodDocument) {
-					Document document = DocumentHelper.parseText(strBuilder.toString());
+					Document document = DocumentHelper
+							.parseText(strBuilder.toString());
 					if (document.getRootElement().element("entry") != null) {
-						LOGGER.info("received document from web-service: " + url.getFile());
+						LOGGER.info("received document from web-service: "
+								+ url.getFile());
 						dataQueue.add((T) document);
 					} else {
-						LOGGER.error("recived a bad document from the web-service");
+						LOGGER.error(
+								"recived a bad document from the web-service");
 					}
 				}
 
 				if (isJSONValid(strBuilder.toString())) {
-					JSONObject obj = (JSONObject) JSON_PARSER.parse(strBuilder.toString());
-					JSONArray travelTimes = (JSONArray) obj.get("value");
-					System.out.println(travelTimes.get(1));
+					JSONObject obj = (JSONObject) JSON_PARSER
+							.parse(strBuilder.toString());
+					LOGGER.info("received document from web-service: "
+							+ url.getFile());
+					dataQueue.add((T) obj);
+					
+				} else {
+					LOGGER.error("recived a bad document from the web-service");
 				}
 
 				is.close();
@@ -100,7 +109,8 @@ public class DataRetriever<T> implements Runnable {
 		} catch (DocumentException e) {
 			LOGGER.error("Error parsing XML from " + url.getHost(), e);
 		} catch (IOException e) {
-			LOGGER.error("Error reading the XML document from " + url.getFile(), e);
+			LOGGER.error("Error reading the XML document from " + url.getFile(),
+					e);
 		} catch (ParseException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
