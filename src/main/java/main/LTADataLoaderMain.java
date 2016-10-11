@@ -6,9 +6,12 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.util.Properties;
 import java.util.Queue;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
 import org.apache.log4j.Logger;
@@ -137,8 +140,26 @@ public class LTADataLoaderMain {
 							new DataRetriever<JSONObject>(url, configProperties,
 									imagesQueue),
 							2, 60, TimeUnit.SECONDS);
-					executor.schedule(new TrafficImagesDatabaseLoader(
+					final ScheduledFuture<?> future =	executor.schedule(new TrafficImagesDatabaseLoader(
 							imagesQueue, access), 2, TimeUnit.SECONDS);
+					
+					executor.execute(new Runnable() {
+						 
+					    @Override
+					    public void run() {
+					        try {
+					            future.get();
+					        } catch (InterruptedException e) {
+					            LOGGER.error("Scheduled execution was interrupted", e);
+					        } catch (CancellationException e) {
+					        	LOGGER.warn("Watcher thread has been cancelled", e);
+					        } catch (ExecutionException e) {
+					        	LOGGER.error("Uncaught exception in scheduled execution", e.getCause());
+					        }
+					    }
+					 
+					});
+					
 				}
 
 			}

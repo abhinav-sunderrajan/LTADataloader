@@ -1,6 +1,9 @@
 package dataretrievers;
 
+import java.awt.Image;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
@@ -11,6 +14,8 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
+
+import javax.imageio.ImageIO;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.io.output.ByteArrayOutputStream;
@@ -56,16 +61,18 @@ public class TrafficImagesDatabaseLoader extends DatabaseLoader<JSONObject> {
 				JSONArray imageSet = (JSONArray) data.get("value");
 				Iterator<JSONObject> it = imageSet.iterator();
 
-				LOGGER.info("Inserting document into DB..");
-
 				while (it.hasNext()) {
 					JSONObject element = it.next();
 					URL imageUrl = new URL((String) element.get("ImageLink"));
-					URLConnection conn = imageUrl.openConnection();
+					URLConnection con = imageUrl.openConnection();
+				    con.setReadTimeout( 5000 ); //2 seconds
+				    InputStream is =con.getInputStream();
+					BufferedImage  image = ImageIO.read(is);
 					ByteArrayOutputStream baos = new ByteArrayOutputStream();
-					IOUtils.copy(conn.getInputStream(), baos);
+					ImageIO.write(image,"jpg", baos);
 					byte[] imageBytes = baos.toByteArray();
 					baos.close();
+					is.close();
 					int imageCode = Arrays.hashCode(imageBytes);
 					if (!insertedCodeList.contains(imageCode)) {
 						double latitude = (double) element.get("Latitude");
@@ -100,9 +107,11 @@ public class TrafficImagesDatabaseLoader extends DatabaseLoader<JSONObject> {
 			} catch (SQLException e) {
 				LOGGER.error("Error inserting data to database.", e);
 			} catch (MalformedURLException e) {
-				e.printStackTrace();
+				LOGGER.error("Error reading image from an invalid  URL", e);
 			} catch (IOException e) {
-				e.printStackTrace();
+				LOGGER.error("Error reading image from the  URL", e);
+			}catch(Exception ex){
+				ex.getCause().printStackTrace();
 			}
 
 			LOGGER.info("Inserted " + nRows

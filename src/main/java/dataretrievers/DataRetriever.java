@@ -95,8 +95,9 @@ public class DataRetriever<T> implements Runnable {
 				if (isJSONValid(strBuilder.toString())) {
 					JSONObject obj = (JSONObject) JSON_PARSER
 							.parse(strBuilder.toString());
+					JSONArray imageSet = (JSONArray) obj.get("value");
 					LOGGER.info("received document from web-service: "
-							+ url.getFile());
+							+ url.getFile()+ " containing "+imageSet.size()+" images." );
 					dataQueue.add((T) obj);
 					
 				} else {
